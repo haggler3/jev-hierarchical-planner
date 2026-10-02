@@ -3,8 +3,8 @@
 Jev is reachable through OpenRouter's alpha "decisions" endpoint, not the
 normal /chat/completions path. Given free-text `state` plus a set of typed
 questions (noul / choice / score), it returns a typed answer with a
-calibrated probability per question -- no prose. This mirrors the Go client
-in aircoder_e_dev_CLI/pkg/llm/decisions.go.
+calibrated probability per question -- no prose. The endpoint is alpha and
+may change.
 """
 
 from __future__ import annotations

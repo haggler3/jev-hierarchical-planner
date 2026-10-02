@@ -187,13 +187,20 @@ $$
 > ### TLDR
 >
 > - **The hierarchy works.** Across 24 held-out randomised city missions, Jev (as strategic layer) **delivered all 4 packages and landed in 23/24**; a greedy dispatcher with no battery look-ahead completed **0/24**.
-> - **Jev is *not* better than a competent hand-written dispatcher here.** The rules baseline (given the *same* numbers Jev sees) went **24/24**, agreed with the oracle more often (**89% vs 86%**) and was **~8.5 s faster** per mission. The honest claim is "Jev matches a hand-engineered policy while being specified in a sentence of language, not code."
-> - **Jev's confidence is trustworthy.** Its stated probabilities track how often it matches the exhaustive-search oracle (**ECE 0.061**). When it says 0.9, it is right about 90% of the time.
-> - **Every layer earns its place.** Without the planner the drone "succeeds" 24/24 *but flies through buildings for 27.5 s per mission* (0/24 clean). A strategist with no battery look-ahead (greedy) runs out of power every time.
-> - **Analytics caught a real bug.** v1 scored 21/24 because my prompt ranked the deadline above battery safety. After fixing it, a **held-out** re-run scored 23/24.
+> - **Jev is *not* better than a competent hand-written dispatcher here.** The rules baseline (given the *same* numbers Jev sees) went **24/24**, agreed with the oracle slightly more often (**89% vs 86%**, not significance-tested) and was **~8.5 s faster** per mission. The honest claim is "Jev matches a hand-engineered policy while being specified in a sentence of language, not code."
+> - **Jev's confidence is trustworthy.** Its stated probabilities roughly track how often it matches the exhaustive-search oracle (**ECE 0.061**), with some overconfidence in the 0.95-0.99 bin (about 80% agreement).
+> - **The planner and a battery-aware strategist clearly earn their place; L0 is untested here.** Without the planner the drone "succeeds" 24/24 *but flies through buildings for 27.5 s per mission* (0/24 clean). A strategist with no battery look-ahead (greedy) runs out of power every time. The L0 supervisor never triggered, so these runs say nothing about its value.
+> - **Analytics caught a real bug.** v1 scored 21/24 because my prompt ranked the deadline above battery safety. After fixing it, a re-run on **different, held-out seeds** scored 23/24. Different seeds means this is not a controlled before/after (see below).
 > - **Cheap.** About **$0.0016 per mission**, $0.197 for both full campaigns (5,727 Jev calls). No GPU needed.
 
-Randomised missions: storm and no-fly timing/size/position, medical deadline, start battery 72-100 %, wind. Every configuration flies the **same** scenario for a given seed. Seeds 25-48 are **held out**: they were not looked at while the prompt was being fixed.
+Randomised missions: storm and no-fly timing/size/position, medical deadline, start battery 72-100 %, wind. Every configuration flies the **same** scenario for a given seed. Seeds 25-48 are **held out**: they were not looked at while the prompt was being fixed. (Seed 0 is the demo scenario used during development and is not part of any statistic.)
+
+| term | meaning |
+|---|---|
+| **success** | all 4 deliveries made **and** the drone landed at the depot without running out of battery |
+| **clean success** | success **and** never inside a building and under 2 s inside a no-fly zone (zones can appear around the drone) |
+| **oracle agreement** | fraction of decisions where the chosen first job is optimal under exhaustive search (or within 0.75 s of it) |
+| **regret** | seconds lost versus the oracle's best plan for the chosen first job (capped; extra penalty if it admits no feasible plan) |
 
 | configuration | success | clean success* | deadline met | time (s) | oracle agreement | mean regret | $ / mission |
 |---|---|---|---|---|---|---|---|
@@ -248,13 +255,15 @@ Randomised missions: storm and no-fly timing/size/position, medical deadline, st
 
 All three v1 Jev failures had the same shape: a low start battery (~79 %), Jev flew the urgent medical run to the far corner, and died before it could get home. The cause was my prompt, not the model: it listed the deadline as priority 1 and battery as priority 2, and Jev followed it. I made battery safety a hard constraint and re-evaluated on **fresh seeds** rather than the same ones, so the fix is not tuned on its own test set. v1 is archived in [`docs/v1/`](docs/v1/).
 
+> **Read this table as direction, not effect size.** v1 and v2 use different scenarios, so the numbers are not a controlled before/after: the rules baseline also moved from 96 % to 100 % purely from the scenario draw, and the ECE change could come from the seeds as much as from the prompt. The stronger evidence is qualitative: all three v1 failures had one identical cause that traces directly to the prompt wording. A controlled test (re-running the fixed prompt on seeds 1-24) was not done.
+
 ---
 
 ## Run it
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt      # Windows; .venv/bin/ on Linux
-echo OPENROUTER_API_KEY=sk-or-... > .env
+echo OPENROUTER_API_KEY=sk-or-... > .env      # .env is git-ignored; never commit it
 
 python run_demo.py                  # live Jev, seed 0 -> out/demo.mp4 + out/summary.png + out/decision_log.json
 python run_demo.py --policy rules   # offline hand-written dispatcher
@@ -276,4 +285,4 @@ docs/         demo.mp4  analysis.png  RESULTS.md  architecture.png  v1/
 
 ## Caveats
 
-Simulation only. Buildings are visual: the physics has no collisions, so building clearance is *measured*, not enforced. The battery model is a simple thrust-proportional drain. Jev is reached through an alpha endpoint (`typesafe/jev-1.13`) that may change. The oracle uses Jev's own cost model, so it scores judgment, not the accuracy of the model itself. 24 scenarios give wide confidence intervals; differences of a task or two are noise.
+Simulation only. Buildings are visual: the physics has no collisions, so building clearance is *measured*, not enforced. The battery model is a simple thrust-proportional drain. Jev is reached through an alpha endpoint (`typesafe/jev-1.13`) that may change, and each call sends the mission's text state to OpenRouter / TypeSafe AI. This is an independent project, not affiliated with or endorsed by TypeSafe AI or OpenRouter. The oracle uses Jev's own cost model, so it scores judgment, not the accuracy of the model itself. 24 scenarios give wide confidence intervals; differences of a task or two are noise.
