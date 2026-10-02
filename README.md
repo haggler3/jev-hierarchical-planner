@@ -38,7 +38,7 @@ Planners and flight controllers are good at geometry and dynamics. What they han
 | **A policy written in language.** The dispatch rules are a paragraph of English, not code. | Fixing the v1 failures meant reordering one sentence in the prompt (see [v1 &rarr; v2](#what-the-analytics-found-v1--v2)). | The flip side: behaviour is sensitive to wording, and that sensitivity caused the v1 failures. |
 | **Grounded by tools instead of replacing them.** The planner prices every option and the prices go into Jev's prompt. | Without the A\* planner the drone spent 27.5 s per mission inside buildings (0/24 clean). | Jev does not plan routes and was never asked to. |
 
-This is the same division of labour as SayCan, where a language model proposes and grounded feasibility scores constrain it [[3]](#references), and it reflects the finding that language models alone are weak at multi-step planning [[4]](#references), which is why route geometry stays in A\*. Large language models can be well calibrated when a question is posed as multiple choice [[5]](#references); Jev is described as being trained directly for calibration (RL for Calibrated Decisions) [[1]](#references) [[2]](#references), and calibration is measured here the standard way [[6]](#references).
+Related work and what is different about this project are laid out in [Related work](#related-work-and-what-is-different) below.
 
 **Where it sits next to the alternatives (for this task):**
 
@@ -48,6 +48,29 @@ This is the same division of labour as SayCan, where a language model proposes a
 | Exhaustive search (the oracle) | optimal for a fully specified model | needs the whole problem formalised; factorial in the number of jobs; used here only offline for scoring |
 | General LLM agent (free text) | flexible, can explain itself | slower and costlier per decision, output must be parsed; **not tested here** |
 | **Jev** | typed, probability-scored, fast, specified in language | no rationale text (a gap for audit) [[1]](#references); alpha hosted endpoint; vendor claims unverified independently |
+
+### Related work and what is different
+
+None of the systems below were re-run here; the comparison is about design, not benchmark numbers, and the tasks differ.
+
+| work | what it does | how this project relates |
+|---|---|---|
+| **SayCan** (Ahn et al. 2022) [[3]](#references) | A language model proposes natural-language skills and learned value functions of pretrained skills constrain the choice to what is feasible. | Same idea of grounding a language-side choice in feasibility. Here the grounding is a classical planner's route cost, written into the prompt as numbers, and the selector returns per-option probabilities directly. |
+| **Code as Policies** (Liang et al. 2022) [[12]](#references) | A code-writing language model synthesises executable Python that calls robot control APIs. | No code is generated or executed at run time. The strategic model can only pick among enumerated options, which limits what it can do and what it can break. |
+| **TypeFly** (Chen et al. 2023) [[13]](#references) | An LLM writes drone control plans in a small custom language (MiniSpec), designed because generation latency grows with the length of the output plan. | Also a drone, but the model emits a plan program from an English command. Here the model emits a fixed-size typed answer, so its latency does not grow with plan length. The flexibility is correspondingly lower: the options are fixed in advance. |
+| **LLM+P** (Liu et al. 2023) [[14]](#references) | The LLM translates a problem into PDDL and a classical planner solves it optimally. | For a fully formalised problem like this one, formalise-and-solve is the stronger approach: the exhaustive-search oracle here is exactly that, and it is optimal by construction. A model like Jev only makes sense in this slot when constraints cannot be fully formalised, which this project does not test. |
+| **PlanBench** (Valmeekam et al. 2022) [[4]](#references) | A benchmark showing that LLMs struggle to plan about actions and change. | Motivation for keeping route geometry in A\* rather than asking the strategic model to plan. |
+| **KnowNo** (Ren et al. 2023) [[15]](#references) | Conformal prediction over an LLM's option-confidence scores yields a prediction set, and the robot asks for help when the set has more than one option. | The same use case for option probabilities. This project uses them only for switching hysteresis and measures calibration (ECE), but gives no coverage guarantee. A KnowNo-style conformal wrapper around Jev's probabilities is an obvious next step and is **not done here**. |
+| **Calibration of language models** (Kadavath et al. 2022 [[5]](#references); Tian et al. 2023 [[16]](#references)) | Large models can be well calibrated on multiple-choice questions posed in the right format; for RLHF models, verbalised confidence is often better calibrated than raw token probabilities. | Here confidence is a first-class typed output of the model rather than something elicited by prompting, and it is scored against an oracle on the actual decision problem. |
+| **Three-layer architectures** (Gat 1998) [[11]](#references) | The classical split of an autonomous robot into deliberation, sequencing and reactive control. | The L3 / L2 / L1 split follows this pattern. **The architecture is not new**; what is new is the kind of model in the deliberative slot. |
+
+**What this project adds, and what it does not.**
+
+- **A typed, probability-returning model in the strategic slot**, rather than generated text, code or a plan program, with its decisions scored one by one.
+- **A closed loop with the planner.** The classical planner prices every option and those prices are rendered into the model's prompt, so the model's goal choices are informed by up-to-date route length, ETA and battery cost.
+- **An evaluation harness aimed at the strategic layer itself.** An exhaustive-search oracle gives every decision a regret and an agreement label; scenarios are randomised and paired across configurations with held-out seeds; and ablations use a "clean success" metric that exposes shortcuts (such as flying through buildings) which plain success hides. I did not survey how the papers above evaluate, so I make no claim that this is unusual.
+- **An unflattering result, reported as such:** no better than a hand-written dispatcher on this task, plus a failure traced to prompt wording.
+- **No claim of novelty beyond that.** The hierarchy, the grounding idea and the use of calibrated option probabilities all have clear precedents above.
 
 **What this project did *not* show.** Jev did not beat the hand-written dispatcher (23/24 vs 24/24, about 8.5 s slower per mission), and it never chose the `urgent` speed mode when a deadline was tight. The case where Jev should have a real edge, constraints that arrive as free-form text a rule author could not have anticipated, is **a hypothesis this repo does not test**: every option here was described by numbers a rules baseline could read directly.
 
@@ -366,3 +389,9 @@ Simulation only. Buildings are visual: the physics has no collisions, so buildin
 8. I. Pohl, "Heuristic search viewed as path finding in a graph", Artificial Intelligence 1(3-4), 1970.
 9. E. Todorov, T. Erez, Y. Tassa, "MuJoCo: A physics engine for model-based control", IROS 2012.
 10. E. B. Wilson, "Probable inference, the law of succession, and statistical inference", J. American Statistical Association 22(158), 1927.
+11. E. Gat, "On Three-Layer Architectures", in *Artificial Intelligence and Mobile Robots*, AAAI Press / MIT Press, 1998.
+12. J. Liang et al., "Code as Policies: Language Model Programs for Embodied Control", 2022. arXiv:[2209.07753](https://arxiv.org/abs/2209.07753)
+13. G. Chen, X. Yu, N. Ling, L. Zhong, "TypeFly: Flying Drones with Large Language Model", 2023. arXiv:[2312.14950](https://arxiv.org/abs/2312.14950)
+14. B. Liu et al., "LLM+P: Empowering Large Language Models with Optimal Planning Proficiency", 2023. arXiv:[2304.11477](https://arxiv.org/abs/2304.11477)
+15. A. Z. Ren et al., "Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners" (KnowNo), CoRL 2023. arXiv:[2307.01928](https://arxiv.org/abs/2307.01928)
+16. K. Tian et al., "Just Ask for Calibration: Strategies for Eliciting Calibrated Confidence Scores from Language Models Fine-Tuned with Human Feedback", EMNLP 2023. arXiv:[2305.14975](https://arxiv.org/abs/2305.14975)
