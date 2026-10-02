@@ -345,19 +345,19 @@ $$
 Moving to a neighbouring voxel (26-connected) costs its distance, with vertical motion weighted 1.6x, plus a penalty for hugging obstacles:
 
 $$
-c(u \to v) = r\sqrt{\Delta x^{2}+\Delta y^{2}+(1.6\,\Delta z)^{2}} \;+\; 0.7\,r\cdot\mathbf{1}\big[\,v \text{ is next to an obstacle}\,\big]
+c(u \to v) = r\sqrt{\Delta x^{2}+\Delta y^{2}+(1.6 \Delta z)^{2}} \quad +\quad 0.7 r\cdot\mathbf{1}\big[ v \text{ is next to an obstacle} \big]
 $$
 
 The search inflates its heuristic by *w* = 1.25, which makes it **weighted A\*** [[8]](#references). Because the heuristic never overestimates the true cost, the path found costs at most 1.25 times the optimum:
 
 $$
-f(v) = g(v) + w\,h(v), \qquad h(v) = r\sqrt{\Delta x^{2}+\Delta y^{2}+(1.6\,\Delta z)^{2}}, \qquad w = 1.25
+f(v) = g(v) + w h(v), \qquad h(v) = r\sqrt{\Delta x^{2}+\Delta y^{2}+(1.6 \Delta z)^{2}}, \qquad w = 1.25
 $$
 
 Waypoints are then **string-pulled** (greedy line-of-sight shortcuts). The drone tracks a "carrot" point a distance ℓ ahead of its projection onto the path, and a braking limit brings it to rest at the goal (*d* is the remaining path length):
 
 $$
-\ell = \operatorname{clip}\left(0.6\,v_{\text{mode}},\ 3,\ 6\right)\ \text{m}, \qquad v_{\text{lim}} = \min\left(v_{\text{mode}},\ \sqrt{2\cdot 1.4\cdot d}+0.7\right)
+\ell = \operatorname{clip}\left(0.6 v_{\text{mode}},\ 3,\ 6\right)\ \text{m}, \qquad v_{\text{lim}} = \min\left(v_{\text{mode}},\ \sqrt{2\cdot 1.4\cdot d}+0.7\right)
 $$
 
 ### L1 control: geometric controller on SO(3)
@@ -365,25 +365,25 @@ $$
 The structure follows the geometric quadrotor controller of Lee, Leok and McClamroch [[7]](#references). The position error **e** is shortened so the commanded speed saturates at *v*<sub>lim</sub>; a PD law then gives the desired acceleration, with tilt limited to 38°:
 
 $$
-\mathbf{a} = K_{p}\,\operatorname{clip}\left(\mathbf{e},\ \frac{v_{\text{lim}}K_{d}}{K_{p}}\right) - K_{d}\,\mathbf{v}, \qquad \mathbf{a}_{\text{des}} = \mathbf{a} + g\,\mathbf{e}_{3}, \qquad \lVert \mathbf{a}_{xy} \rVert \le g\tan 38^{\circ}
+\mathbf{a} = K_{p} \operatorname{clip}\left(\mathbf{e},\ \frac{v_{\text{lim}}K_{d}}{K_{p}}\right) - K_{d} \mathbf{v}, \qquad \mathbf{a}_{\text{des}} = \mathbf{a} + g \mathbf{e}_{3}, \qquad \lVert \mathbf{a}_{xy} \rVert \le g\tan 38^{\circ}
 $$
 
 The thrust direction fixes the desired attitude:
 
 $$
-\mathbf{z}_{b} = \frac{\mathbf{a}_{\text{des}}}{\lVert \mathbf{a}_{\text{des}} \rVert}, \qquad R_{d} = \begin{bmatrix}\mathbf{x}_{b} & \mathbf{y}_{b} & \mathbf{z}_{b}\end{bmatrix}
+\mathbf{z}_{b} = \frac{\mathbf{a}_{\text{des}}}{\lVert \mathbf{a}_{\text{des}} \rVert}, \qquad R_{d} = \left[\mathbf{x}_{b}\quad \mathbf{y}_{b}\quad \mathbf{z}_{b}\right]
 $$
 
 Collective thrust *T* and body torque **τ** follow, where *R* is the current attitude, **ω** the body rate and *J* the inertia:
 
 $$
-T = m\,\mathbf{a}_{\text{des}}\cdot R\,\mathbf{e}_{3}, \qquad \mathbf{e}_{R} = \tfrac{1}{2}\left(R_{d}^{\top}R - R^{\top}R_{d}\right)^{\vee}, \qquad \boldsymbol{\tau} = J\left(-K_{R}\,\mathbf{e}_{R} - K_{\omega}\,\boldsymbol{\omega}\right) + \boldsymbol{\omega}\times J\boldsymbol{\omega}
+T = m \mathbf{a}_{\text{des}}\cdot R \mathbf{e}_{3}, \qquad \mathbf{e}_{R} = \tfrac{1}{2}\left(R_{d}^{\top}R - R^{\top}R_{d}\right)^{\vee}, \qquad \boldsymbol{\tau} = J\left(-K_{R} \mathbf{e}_{R} - K_{\omega} \boldsymbol{\omega}\right) + \boldsymbol{\omega}\times J\boldsymbol{\omega}
 $$
 
 The X-configuration mixer finds four rotor thrusts *f*<sub>i</sub> that produce *T* and **τ**. Rotor *i* sits at (*x*<sub>i</sub>, *y*<sub>i</sub>) with arm 0.2 m and spin direction *s*<sub>i</sub> = ±1; *k* = 0.016 is the yaw coefficient:
 
 $$
-T = \sum_{i=1}^{4} f_{i}, \qquad \tau_{x} = \sum_{i=1}^{4} y_{i}\,f_{i}, \qquad \tau_{y} = -\sum_{i=1}^{4} x_{i}\,f_{i}, \qquad \tau_{z} = k\sum_{i=1}^{4} s_{i}\,f_{i}
+T = \sum_{i=1}^{4} f_{i}, \qquad \tau_{x} = \sum_{i=1}^{4} y_{i} f_{i}, \qquad \tau_{y} = -\sum_{i=1}^{4} x_{i} f_{i}, \qquad \tau_{z} = k\sum_{i=1}^{4} s_{i} f_{i}
 $$
 
 Each rotor follows its command with first-order lag:
@@ -399,19 +399,19 @@ Gains: *K*<sub>p</sub> = 6, *K*<sub>d</sub> = 4, *K*<sub>R</sub> = 60, *K*<sub>�
 Battery *B* (in %) drains in proportion to total rotor thrust. Hovering, the rotors sum to about *mg* ≈ 14.7 N, so the drain is about 1.5 %/s:
 
 $$
-\dot{B} = -0.105\sum_{i=1}^{4} f_{i} \qquad [\%/\text{s}]
+\dot{B} = -0.105\sum_{i=1}^{4} f_{i} \qquad [\text{percent per s}]
 $$
 
 For decisions, a leg with planned length *L* (metres) is priced as:
 
 $$
-\text{ETA} = \frac{L}{6} + 3\ \text{s}, \qquad \text{need} = 1.75 \times \text{ETA}\quad [\%]
+\text{ETA} = \frac{L}{6} + 3\ \text{s}, \qquad \text{need} = 1.75 \times \text{ETA}\quad [\text{percent}]
 $$
 
 A job *j* is **feasible** only if it leaves enough battery to fly home plus a 10 % reserve, where home(*j*) is the planner's own cost of the route from the job back to the depot:
 
 $$
-B - \text{need}(j) - \text{home}(j) \ge 10\%
+B - \text{need}(j) - \text{home}(j) \ge 10\ \text{percent}
 $$
 
 L0 overrides everything and latches "return to depot" when *B* drops below 8 %.
@@ -421,13 +421,13 @@ L0 overrides everything and latches "return to depot" when *B* drops below 8 %.
 For the *n* remaining jobs, the oracle enumerates every ordering π (with optional recharge stops) and finds the fastest feasible plan:
 
 $$
-T^{*} = \min_{\pi\,\in\,S_{n},\ \text{recharge stops}} T(\pi) \qquad \text{subject to the battery and deadline constraints}
+T^{\ast} = \min_{\pi \in S_{n},\ \text{recharge stops}} T(\pi) \qquad \text{subject to the battery and deadline constraints}
 $$
 
 A dispatcher that picks first job *c* has **regret**, in seconds:
 
 $$
-\rho(c) = T^{*}(\text{first} = c) - T^{*}
+\rho(c) = T^{\ast}(\text{first} = c) - T^{\ast}
 $$
 
 Regret is capped, with an extra penalty if no feasible plan starts with *c*. A decision "agrees" with the oracle if *c* is optimal or ρ(*c*) is under 0.75 s.
@@ -435,7 +435,7 @@ Regret is capped, with an extra penalty if no feasible plan starts with *c*. A d
 Calibration uses Jev's stated probability *p*<sub>i</sub> for each chosen job and the outcome *y*<sub>i</sub> = 1 if the oracle agrees, else 0. Over *N* decisions grouped into *B* confidence bins, with *n*<sub>b</sub> decisions, accuracy acc<sub>b</sub> and mean confidence conf<sub>b</sub> in bin *b*, the expected calibration error [[6]](#references) and Brier score are:
 
 $$
-\text{ECE} = \sum_{b=1}^{B}\frac{n_{b}}{N}\,\big|\,\text{acc}_{b} - \text{conf}_{b}\,\big|, \qquad \text{Brier} = \frac{1}{N}\sum_{i=1}^{N}\left(p_{i} - y_{i}\right)^{2}
+\text{ECE} = \sum_{b=1}^{B}\frac{n_{b}}{N} \big| \text{acc}_{b} - \text{conf}_{b} \big|, \qquad \text{Brier} = \frac{1}{N}\sum_{i=1}^{N}\left(p_{i} - y_{i}\right)^{2}
 $$
 
 Success rates carry 95 % **Wilson** score intervals [[10]](#references), for an observed rate p̂ over *n* trials with *z* = 1.96:
