@@ -34,7 +34,7 @@ Planners and flight controllers are good at geometry and dynamics. What they han
 |---|---|---|
 | **Machine-checkable outputs.** The answer is always one of the options you supplied, so nothing has to be parsed or validated. | 0 API failures or fallbacks across 5,727 calls in 144 Jev-driven missions. Answers are constrained to the supplied options by design. | My client would silently repair an out-of-set choice (taking the highest-probability option) and I did not log whether that ever fired. Also, a valid answer is not a correct one: 86% oracle agreement, and one held-out mission ended in a crash. |
 | **Probabilities you can act on.** Each option carries a probability, which the mission loop uses directly (it only switches jobs when a challenger beats the current job by 0.15). | Confidence is roughly calibrated against an exhaustive-search oracle: ECE 0.061, Brier 0.114. | Overconfident in the 0.95-0.99 bin (about 80% agreement). The oracle is a proxy for ground truth, not ground truth. |
-| **Latency and cost that fit inside a control loop.** | Median 320 ms, p95 470 ms, about \$0.000035 per call, \$0.0016 per mission (45 calls). | The vendor's much larger speed and cost advantages over frontier LLMs are vendor-reported, with no independent evaluation found [[1]](#references); **this repo did not benchmark an LLM**, so it makes no speed-up claim. |
+| **Latency and cost that fit inside a control loop.** | Median 320 ms, p95 500 ms (held-out missions), about \$0.000035 per call, \$0.0016 per mission (45 calls). | Cost and speed against LLMs are worked out in [Cost and speed versus a general-purpose LLM](#cost-and-speed-versus-a-general-purpose-llm): the cost side uses published prices, the latency side uses vendor-reported figures. **No LLM was benchmarked here.** |
 | **A policy written in language.** The dispatch rules are a paragraph of English, not code. | Fixing the v1 failures meant reordering one sentence in the prompt (see [v1 &rarr; v2](#what-the-analytics-found-v1--v2)). | The flip side: behaviour is sensitive to wording, and that sensitivity caused the v1 failures. |
 | **Grounded by tools instead of replacing them.** The planner prices every option and the prices go into Jev's prompt. | Without the A\* planner the drone spent 27.5 s per mission inside buildings (0/24 clean). | Jev does not plan routes and was never asked to. |
 
@@ -46,7 +46,7 @@ Related work and what is different about this project are laid out in [Related w
 |---|---|---|
 | Hand-written rules | **Best results here** (24/24 missions), free, deterministic | every new constraint is a code change; no uncertainty output |
 | Exhaustive search (the oracle) | optimal for a fully specified model | needs the whole problem formalised; factorial in the number of jobs; used here only offline for scoring |
-| General LLM agent (free text) | flexible, can explain itself | slower and costlier per decision, output must be parsed; **not tested here** |
+| General LLM agent (free text) | flexible, can explain itself | costlier per decision at published prices, latency not measured here, output must be parsed unless structured outputs are used; **not tested here** |
 | **Jev** | typed, probability-scored, fast, specified in language | no rationale text (a gap for audit) [[1]](#references); alpha hosted endpoint; vendor claims unverified independently |
 
 ### Related work and what is different
@@ -71,6 +71,65 @@ None of the systems below were re-run here; the comparison is about design, not 
 - **An evaluation harness aimed at the strategic layer itself.** An exhaustive-search oracle gives every decision a regret and an agreement label; scenarios are randomised and paired across configurations with held-out seeds; and ablations use a "clean success" metric that exposes shortcuts (such as flying through buildings) which plain success hides. I did not survey how the papers above evaluate, so I make no claim that this is unusual.
 - **An unflattering result, reported as such:** no better than a hand-written dispatcher on this task, plus a failure traced to prompt wording.
 - **No claim of novelty beyond that.** The hierarchy, the grounding idea and the use of calibrated option probabilities all have clear precedents above.
+
+### Cost and speed versus a general-purpose LLM
+
+**This is a calculation, not a benchmark.** I chose not to spend API money on an LLM head-to-head, so the LLM side uses published prices and vendor-reported latency. Reproduce every number with [`scripts/cost_compare.py`](scripts/cost_compare.py).
+
+| | basis |
+|---|---|
+| **Measured here (Jev)** | 44.8 calls per mission, \$0.000035 per call, \$0.0016 per mission, median 0.32 s and p95 0.50 s, over the 24 held-out missions. About 840 input tokens per call, inferred from the billed cost and the published \$0.042 per million input tokens (output is free) [[1]](#references). |
+| **Assumed (LLM)** | The same ~840-token prompt, and either 100 output tokens (a short JSON answer) or 1,000 (modest reasoning). OpenRouter list prices retrieved 2026-10-02 [[17]](#references); providers and tiers vary by roughly 2x. |
+| **"Frontier average"** | The mean price of four flagships I picked (Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.1 Sol, Grok 4.7): \$2.50 in / \$11.50 out per million tokens. "Frontier" is my judgment. |
+| **Not measured** | LLM latency and LLM decision quality. |
+
+**Cost per decision call and per mission**
+
+| model (OpenRouter list price, in / out per M tokens) | cost per call | cost per mission | vs Jev |
+|---|---|---|---|
+| **Jev (measured)** | \$0.000035 | \$0.0016 | 1x |
+| *short JSON answer (no hidden reasoning): 100 output tokens* | | | |
+| Frontier average of 4 flagships (\$2.50 / \$11.50) | \$0.00325 | \$0.1453 | 92x |
+| claude-opus-5.5 (\$4 / \$20) | \$0.00535 | \$0.2396 | 152x |
+| claude-sonnet-5.5 (\$2 / \$10) | \$0.00268 | \$0.1198 | 76x |
+| gpt-6.1-sol (\$2 / \$10) | \$0.00268 | \$0.1198 | 76x |
+| grok-4.7 (\$2 / \$6) | \$0.00228 | \$0.1019 | 65x |
+| gemini-3.8-flash (\$0.75 / \$3.75) | \$0.00100 | \$0.0449 | 29x |
+| gpt-6-luna (\$0.1 / \$0.5) | \$0.00013 | \$0.0060 | 4x |
+| deepseek-v4-flash (\$0.028 / \$0.056) | \$0.00003 | \$0.0013 | 1x |
+| *modest reasoning + answer: 1000 output tokens* | | | |
+| Frontier average of 4 flagships (\$2.50 / \$11.50) | \$0.01360 | \$0.6084 | 386x |
+| claude-opus-5.5 (\$4 / \$20) | \$0.02335 | \$1.0451 | 663x |
+| claude-sonnet-5.5 (\$2 / \$10) | \$0.01168 | \$0.5225 | 332x |
+| gpt-6.1-sol (\$2 / \$10) | \$0.01168 | \$0.5225 | 332x |
+| grok-4.7 (\$2 / \$6) | \$0.00768 | \$0.3435 | 218x |
+| gemini-3.8-flash (\$0.75 / \$3.75) | \$0.00438 | \$0.1960 | 124x |
+| gpt-6-luna (\$0.1 / \$0.5) | \$0.00058 | \$0.0261 | 17x |
+| deepseek-v4-flash (\$0.028 / \$0.056) | \$0.00008 | \$0.0036 | 2x |
+
+- Against the frontier average, the same decisions cost roughly **90x** more per call with a short JSON answer, and roughly **390x** more once the model spends 1,000 tokens reasoning.
+- **Price alone is not Jev's edge against cheap models.** A small model (Gemini 3.8 Flash) is about 29x Jev's cost, GPT-6 Luna about 4x, and DeepSeek V4 Flash at its cheapest listed tier is about the same as Jev for a short answer. Whether those cheap models decide as well as Jev here is untested.
+
+**Latency**
+
+| decision latency | per call | decision time per mission | distance flown at 7 m/s waiting for ONE decision | speed-up vs Jev |
+|---|---|---|---|---|
+| **Jev, measured median** | 0.32 s | 14 s | 2.2 m | 1x |
+| Jev, measured p95 | 0.50 s | 22 s | 3.5 m | - |
+| LLM, vendor-reported low end | 3 s | 134 s | 21 m | 9x |
+| LLM, vendor-reported high end | 30 s | 1342 s | 210 m | 94x |
+
+- **Speed-up: about 9x to 94x**, but only because the LLM figures (3 to 30 s) are the vendor's own, as summarised in [[1]](#references). They are not measured here, and the vendor's headline claim of 40x to 200x is not reproduced. A small fast model on a short JSON answer can plausibly respond in well under 3 s, in which case the real speed-up would be smaller than 9x.
+- **Why latency matters in this loop.** The mission asks for a decision every 2.5 s. With a 3 s LLM the decisions alone would take about 134 s, longer than the whole 104 s mission, so the loop would have to run asynchronously on stale decisions. Each decision would then be 3 to 30 s old: **21 to 210 m of flight at 7 m/s**, compared with 2.2 m for Jev. The tabulated "decision time per mission" is the sum of waiting, not extra mission time.
+
+**What this comparison leaves out**
+
+- **Quality.** The vendor's own benchmark has Jev a few points behind the top LLMs (67.8 % against 73-74 %, as summarised in [[1]](#references)), and a general LLM can explain its choice, which Jev cannot. This repo measures Jev's decision quality against an oracle but does not measure any LLM's.
+- **Typed output is not unique to Jev.** Many of these models advertise structured-output support on OpenRouter, so a valid-option guarantee is available to LLMs too. What differs is that Jev's per-option probabilities are a native output, whereas an LLM's would be token log-probabilities or self-reported confidence [[16]](#references).
+- **Prompt caching.** Most of this prompt is a stable question block, so LLM input cost with caching could be well below the figures above. I did not model it.
+- **Prices drift.** Treat the multiples as a snapshot.
+
+To turn the calculation into a measurement, the captured decision prompts would be sent to the same models and timed; that is the natural next step and was not done.
 
 **What this project did *not* show.** Jev did not beat the hand-written dispatcher (23/24 vs 24/24, about 8.5 s slower per mission), and it never chose the `urgent` speed mode when a deadline was tight. The case where Jev should have a real edge, constraints that arrive as free-form text a rule author could not have anticipated, is **a hypothesis this repo does not test**: every option here was described by numbers a rules baseline could read directly.
 
@@ -395,3 +454,4 @@ Simulation only. Buildings are visual: the physics has no collisions, so buildin
 14. B. Liu et al., "LLM+P: Empowering Large Language Models with Optimal Planning Proficiency", 2023. arXiv:[2304.11477](https://arxiv.org/abs/2304.11477)
 15. A. Z. Ren et al., "Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners" (KnowNo), CoRL 2023. arXiv:[2307.01928](https://arxiv.org/abs/2307.01928)
 16. K. Tian et al., "Just Ask for Calibration: Strategies for Eliciting Calibrated Confidence Scores from Language Models Fine-Tuned with Human Feedback", EMNLP 2023. arXiv:[2305.14975](https://arxiv.org/abs/2305.14975)
+17. OpenRouter model list and per-token prices, retrieved 2026-10-02: https://openrouter.ai/api/v1/models
