@@ -502,14 +502,6 @@ python scripts/mutation_check.py     # check that the tests actually catch bugs
 | Mission loop | determinism per seed, zones activate on schedule, L0 triggers and **latches**, L0 can be switched off, oracle scoring, result fields |
 | Tooling | Wilson interval, sign test, bootstrap, seed parsing, and no gaps in the video-caption timeline |
 
-### Do the tests actually catch bugs?
-
-[`scripts/mutation_check.py`](scripts/mutation_check.py) injects 12 deliberate bugs, one at a time, into a throw-away copy of the code: for example a dropped safety margin, a flipped yaw sign, a removed battery reserve, or a one-sided sign test. It runs the suite against each. A bug the suite does not notice "survives".
-
-- The first version of the tests let 2 of 12 survive. Both gaps got a new test, and all 12 are now caught.
-- This shows the tests are sensitive to those 12 bugs. It does not show the code is bug-free.
-- The yaw-sign bug is caught only by a whole-mission test, not a targeted one.
-
 ---
 
 ## Caveats
