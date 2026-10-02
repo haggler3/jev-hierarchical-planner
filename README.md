@@ -432,6 +432,28 @@ run_demo.py   rollout.py   analyze.py   scripts/ (annotate_video, make_architect
 docs/         demo.mp4  analysis.png  RESULTS.md  architecture.png  v1/
 ```
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest                      # 195 tests, ~15 s, no network and no API key needed
+pytest -m "not slow"        # skip the short MuJoCo simulations (~3 s)
+python scripts/mutation_check.py   # prove the tests catch bugs (see below)
+```
+
+| area | what is checked |
+|---|---|
+| world / scenario | city geometry, 10 m streets, which towers can be overflown; scenario ranges and reproducibility over 40 seeds; no job pad ever buried in a no-fly zone |
+| planner | blocked/free voxels and the inflation margin, paths stay in free space and inside the world, tall towers are circled, low blocks are not climbed (vertical weight), active zones force detours, unreachable goals return `None`, path-follower carrot and progress |
+| oracle | deadline job goes first, low battery forces a recharge, the 10 % reserve boundary, unreachable options, regret is never negative, per-zone caching |
+| strategist | prompt text for each case, `greedy` and `rules` baselines, risk thresholds, typed-answer mapping, out-of-set answers repaired, one retry then fallback, unreachable jobs never offered, battery safety listed above the deadline |
+| Jev client | wire format for each question type, error messages, cost accumulation (HTTP mocked) |
+| physics / control | model compiles, mixer round trip, hover command balances weight, rotor limits, a 2 s closed-loop hover and a 10 s waypoint flight stay within tilt and speed limits |
+| mission loop | determinism per seed, zones activate on schedule, L0 triggers and **latches**, L0 can be switched off, oracle scoring, result fields |
+| tooling | Wilson interval, sign test, bootstrap, seed parsing, video-caption timeline has no gaps |
+
+**Do the tests actually catch bugs?** [`scripts/mutation_check.py`](scripts/mutation_check.py) injects 12 deliberate bugs, one at a time, into a throw-away copy (a dropped safety margin, a flipped yaw sign, a removed battery reserve, a sign test that is one-sided, ...) and runs the suite against each. A bug the suite does not notice "survives". The first version of the tests let 2 of 12 survive; both gaps got a test, and all 12 are now caught. That shows these tests are sensitive to those 12 bugs, not that the code is bug-free. The yaw-sign bug is caught only by a whole-mission test rather than a targeted one.
+
 ## Caveats
 
 Simulation only. Buildings are visual: the physics has no collisions, so building clearance is *measured*, not enforced. The battery model is a simple thrust-proportional drain. Jev is reached through an alpha endpoint (`typesafe/jev-1.13`) that may change, and each call sends the mission's text state to OpenRouter / TypeSafe AI. This is an independent project, not affiliated with or endorsed by TypeSafe AI or OpenRouter. The oracle uses Jev's own cost model, so it scores judgment, not the accuracy of the model itself. 24 scenarios give wide confidence intervals; differences of a task or two are noise. Jev's speed, cost and benchmark figures quoted from other sources are vendor-reported; the figures in this repo are our own measurements.
