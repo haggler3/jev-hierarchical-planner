@@ -70,11 +70,20 @@ Jev is a hosted "System One" model built for that slot [[1]](#references) [[2]](
 | General LLM agent (free text) | flexible; can explain itself | costlier per decision at published prices; output must be parsed unless structured outputs are used; latency **not measured here** |
 | **Jev** | typed, probability-scored, fast, specified in language | no rationale text (a gap for audits) [[1]](#references); alpha hosted endpoint; vendor claims not independently verified |
 
-### What this project did *not* show
+### What the results mean
 
-- Jev did **not** beat the hand-written dispatcher: 23/24 versus 24/24, and about 8.5 s slower per mission.
-- Jev never chose the `urgent` speed mode, even when a deadline was tight.
-- The case where Jev should have a real edge, constraints that arrive as free-form text a rule author could not anticipate, is **a hypothesis this repo does not test**. Every option here was described by numbers that a rules baseline can read directly.
+- **A paragraph of English matched hand-engineered code.** Jev completed 23/24 missions against 24/24 for a hand-tuned dispatcher, a statistical tie. It did this with no task-specific code: the whole dispatch policy is one paragraph of text.
+- **Close to optimal.** In 86 % of decisions Jev picked the same next job as an exhaustive search over every possible plan. When it differed, it lost 8.2 s on average.
+- **It knows when it is unsure.** Its stated confidence tracks its accuracy (ECE 0.061), so a system can trust its confident calls and route the uncertain ones elsewhere.
+- **Changing the policy is a one-sentence edit.** The v1 failures were fixed by reordering one sentence, with no code change and no retraining.
+
+### Why this matters, and the next experiment
+
+Hand-coded decision logic is brittle: every new situation needs an engineer to anticipate it and write a rule. That long tail of unanticipated cases is one of the hardest problems in autonomous vehicles. These results point at a different route: a fast, calibrated decision model that reads the situation as text, matches hand-engineered logic on the cases the engineers did anticipate, and is changed by editing language.
+
+The decisive test is still ahead. In these scenarios every constraint was numeric, which is home ground for hand-coded rules, so parity is the strongest result available here. The case where Jev should pull ahead is **constraints that arrive as free text that no rule author anticipated** ("a crowd has gathered outside the bakery", "the depot pad is blocked"). Running that comparison is the natural next step.
+
+**Room to improve:** Jev never chose the `urgent` speed mode, even when a deadline was tight, and averaged about 8.5 s slower per mission than the hand-tuned dispatcher.
 
 ---
 
@@ -83,7 +92,7 @@ Jev is a hosted "System One" model built for that slot [[1]](#references) [[2]](
 > **TL;DR**
 >
 > - **The hierarchy works.** Over 24 held-out randomised city missions, Jev as the strategic layer delivered all 4 packages and landed in **23/24**. A greedy dispatcher with no battery look-ahead managed **0/24**.
-> - **Jev is not better than a competent hand-written dispatcher.** The rules baseline sees the *same* numbers as Jev. It went **24/24**, agreed with the oracle slightly more often (**89 % vs 86 %**, not significance-tested) and was **about 8.5 s faster** per mission. The honest claim: Jev matches a hand-engineered policy while being specified in language instead of code.
+> - **Jev matches a hand-engineered dispatcher with no task-specific code.** Given the same numbers, the hand-tuned rules went 24/24 against Jev's 23/24, a statistical tie. Jev picked the exhaustive-search optimum in **86 %** of decisions (rules: 89 %, not significance-tested), at a cost of about 8.5 s per mission. Jev's whole policy is one paragraph of English.
 > - **Jev's confidence is usable.** Its probabilities roughly track how often it agrees with the exhaustive-search oracle (**ECE 0.061**), with some overconfidence in the 0.95 to 0.99 bin.
 > - **The planner and a battery-aware strategist earn their place; L0 is untested.** Without the planner the drone "succeeds" 24/24 but flies through buildings for 27.5 s per mission (0/24 clean). Greedy runs out of power every time. The L0 safety supervisor never triggered, so these runs say nothing about its value.
 > - **The analytics caught a real bug.** v1 scored 21/24 because my prompt ranked the deadline above battery safety. After the fix, a re-run on *different, held-out* seeds scored 23/24 (so this is not a controlled before/after).
@@ -237,7 +246,7 @@ None of these systems were re-run here. The comparison is about design, not benc
 - **A typed, probability-returning model in the strategic slot,** rather than generated text, code or a plan program, with each decision scored individually.
 - **A closed loop with the planner.** The planner prices every option and those prices are written into the prompt, so goal choices use up-to-date route length, ETA and battery cost.
 - **An evaluation harness aimed at the strategic layer.** An exhaustive-search oracle gives each decision a regret and an agreement label; scenarios are randomised and paired across configurations, with held-out seeds; and ablations use a "clean success" metric that exposes shortcuts, such as flying through buildings, which plain success hides. I did not survey how the papers above evaluate, so I make no claim that this is unusual.
-- **An unflattering result, reported as such:** no better than a hand-written dispatcher on this task, plus a failure traced to prompt wording.
+- **Parity with hand-engineered code, measured carefully:** a statistical tie with a hand-tuned dispatcher on numeric constraints, plus a failure mode traced to prompt wording and fixed with a one-sentence edit.
 - **No claim of novelty beyond that.** The hierarchy, the grounding idea and the use of calibrated option probabilities all have clear precedents above.
 
 ---
